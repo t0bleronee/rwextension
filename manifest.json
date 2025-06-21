@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Read & Watch Logger",
+  "version": "1.0",
+  "description": "Log and summarize read articles and watched videos using a local LLM.",
+  "permissions": ["activeTab", "storage", "scripting", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "bg.js"
+  },
+  "action": {
+    "default_popup": "panel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["summarise.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+  "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
+  "web_accessible_resources": [{
+    "resources": ["webllm/webllm-runner.html",
+      "webllm/lib/webllm-bundle.js", "webllm/*.js", "webllm/models/**"],
+    "matches": ["<all_urls>"]
+  }]
+}
