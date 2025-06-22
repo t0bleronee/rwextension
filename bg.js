@@ -201,6 +201,8 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
   }
 
   if (msg.type === "UPDATE_USER_PROFILE") {
+    console.log("[BACKGROUND] Starting profile update handler...");
+    
     // Ensure user is initialized
     if (!currentUser) {
       try {
@@ -225,17 +227,26 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
       
       if (response.ok) {
         const data = await response.json();
+        console.log("[BACKGROUND] Server response data:", data);
         currentUser = data.user;
         console.log("[BACKGROUND] Profile updated successfully:", currentUser);
-        sendResponse({ success: true, user: currentUser });
+        
+        const responseToSend = { success: true, user: currentUser };
+        console.log("[BACKGROUND] Sending response to popup:", responseToSend);
+        sendResponse(responseToSend);
+        console.log("[BACKGROUND] Response sent to popup successfully");
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error("[BACKGROUND] Server error:", response.status, errorData);
-        sendResponse({ success: false, error: errorData.error || 'Failed to update profile' });
+        const errorResponse = { success: false, error: errorData.error || 'Failed to update profile' };
+        console.log("[BACKGROUND] Sending error response to popup:", errorResponse);
+        sendResponse(errorResponse);
       }
     } catch (error) {
       console.error("[BACKGROUND] Network error updating profile:", error);
-      sendResponse({ success: false, error: 'Network error. Please check your connection.' });
+      const errorResponse = { success: false, error: 'Network error. Please check your connection.' };
+      console.log("[BACKGROUND] Sending network error response to popup:", errorResponse);
+      sendResponse(errorResponse);
     }
     return true;
   }
