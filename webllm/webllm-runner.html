@@ -1,28 +1,51 @@
 <!doctype html>
 <html>
   <head>
-    <title>Simple Chatbot</title>
+    <title>WebLLM Runner</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
  <body>
-  <h2>Step 1: Initialize WebLLM and Download Model</h2>
-  <div class="download-container">
-    <select id="model-selection"></select>
-    <button id="download">Download</button>
-  </div>
-  <p id="download-status" class="hidden"></p>
-
-  <h2>Step 2: Chat</h2>
-  <div class="chat-container">
-    <div id="chat-box" class="chat-box"></div>
-    <div id="chat-stats" class="chat-stats hidden"></div>
-    <div class="chat-input-container">
-      <input type="text" id="user-input" placeholder="Type a message..." />
-      <button id="send" disabled>Send</button>
-    </div>
-  </div>
+  <div id="status">Initializing WebLLM...</div>
+  
+  <script>
+    // Add status updates
+    function updateStatus(message) {
+      document.getElementById('status').textContent = message;
+      console.log('[STATUS]', message);
+    }
+    
+    // Check if webllm is available
+    function checkWebLLM() {
+      if (window.webllm) {
+        updateStatus('WebLLM found, initializing...');
+        return true;
+      } else {
+        updateStatus('WebLLM not found, retrying...');
+        return false;
+      }
+    }
+    
+    // Initialize with retry
+    let retryCount = 0;
+    const maxRetries = 10;
+    
+    function tryInitialize() {
+      if (checkWebLLM() || retryCount >= maxRetries) {
+        if (retryCount >= maxRetries) {
+          updateStatus('WebLLM failed to load after ' + maxRetries + ' attempts');
+        }
+        return;
+      }
+      
+      retryCount++;
+      setTimeout(tryInitialize, 1000);
+    }
+    
+    // Start checking
+    tryInitialize();
+  </script>
 
   <script src="./webllm-loader.js" type="module"></script>
 </body>
