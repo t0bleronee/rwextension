@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Read & Watch Logger - Public Profiles</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>📚 Read & Watch Logger</h1>
+            <p>Discover what people are reading and watching</p>
+        </header>
+
+        <main class="main">
+            <!-- User Profile Section -->
+            <section id="userProfile" class="user-profile hidden">
+                <div class="profile-header">
+                    <div class="profile-info">
+                        <h2 id="profileName">User Name</h2>
+                        <p id="profileUsername">@username</p>
+                        <p id="profileStats">0 items in reading list</p>
+                    </div>
+                    <div class="profile-actions">
+                        <button id="backToDiscovery" class="btn btn-secondary">← Back to Discovery</button>
+                    </div>
+                </div>
+                
+                <div id="readingList" class="reading-list">
+                    <!-- Reading list items will be populated here -->
+                </div>
+            </section>
+
+            <!-- Discovery Section -->
+            <section id="discovery" class="discovery">
+                <div class="discovery-header">
+                    <h2>Discover Readers</h2>
+                    <p>Find interesting people and see what they're consuming</p>
+                </div>
+                
+                <div class="search-section">
+                    <input type="text" id="usernameSearch" placeholder="Search by username..." class="search-input">
+                    <button id="searchBtn" class="btn btn-primary">Search</button>
+                </div>
+
+                <div id="usersList" class="users-list">
+                    <!-- Public users will be populated here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html> 
