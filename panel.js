@@ -55,11 +55,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   function updateUserDisplay() {
+    console.log("[POPUP] updateUserDisplay called with currentUser:", currentUser);
+    
+    // Check if DOM elements exist
+    if (!userAvatar || !userName || !userUsername) {
+      console.error("[POPUP] DOM elements not found:", {
+        userAvatar: !!userAvatar,
+        userName: !!userName,
+        userUsername: !!userUsername
+      });
+      return;
+    }
+    
     if (currentUser) {
+      console.log("[POPUP] Updating display with:", {
+        displayName: currentUser.displayName,
+        username: currentUser.username,
+        avatar: currentUser.displayName.charAt(0).toUpperCase()
+      });
+      
       userAvatar.textContent = currentUser.displayName.charAt(0).toUpperCase();
       userName.textContent = currentUser.displayName;
       userUsername.textContent = `@${currentUser.username}`;
+      
+      console.log("[POPUP] Display updated successfully");
     } else {
+      console.log("[POPUP] No currentUser, setting default values");
       userAvatar.textContent = 'U';
       userName.textContent = 'User';
       userUsername.textContent = '@user';
@@ -103,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           
           return `
               <div class="summary-item" data-url="${encodeURIComponent(item.url)}" data-time="${item.time || Date.now()}">
-                  <button class="delete-btn" onclick="deleteItem('${encodeURIComponent(item.url)}')" title="Delete this item">×</button>
+                  <button class="delete-btn" data-url="${encodeURIComponent(item.url)}" title="Delete this item">×</button>
                   <div class="summary-title">${escapeHtml(item.title)}</div>
                   <div class="summary-text">${escapeHtml(truncatedSummary)}</div>
                   <div class="summary-meta">
@@ -125,6 +146,15 @@ document.addEventListener('DOMContentLoaded', async () => {
               }
               const url = decodeURIComponent(item.dataset.url);
               chrome.tabs.create({ url });
+          });
+      });
+      
+      // Add delete button event listeners
+      summaryList.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+              e.stopPropagation(); // Prevent triggering the item click
+              const url = btn.dataset.url;
+              await deleteItem(url);
           });
       });
   }
@@ -266,7 +296,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       console.log("[POPUP] Updating profile with data:", formData);
       
-      const response = await chrome.runtime.sendMessage({
+      // Send message to background (we know it works from the logs)
+      chrome.runtime.sendMessage({
         type: "UPDATE_USER_PROFILE",
         data: {
           displayName: formData.displayName,
@@ -274,14 +305,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
       
-      console.log("[POPUP] Profile update response:", response);
+      // Wait a moment for the background to process
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      if (response && response.success) {
-        currentUser = response.user;
+      // Reload user data from background
+      console.log("[POPUP] Reloading user data...");
+      const userResponse = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: "GET_USER_INFO" }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(response);
+          }
+        });
+      });
+      
+      if (userResponse && userResponse.user) {
+        console.log("[POPUP] Got updated user data:", userResponse.user);
+        currentUser = userResponse.user;
         updateUserDisplay();
         hideProfileModal();
         
-        // Show success message with better UX
+        // Show success message
         const successDiv = document.createElement('div');
         successDiv.style.cssText = `
           position: fixed;
@@ -300,7 +345,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         successDiv.textContent = 'Profile updated successfully!';
         document.body.appendChild(successDiv);
         
-        // Remove success message after 3 seconds
         setTimeout(() => {
           if (successDiv.parentNode) {
             successDiv.parentNode.removeChild(successDiv);
@@ -308,40 +352,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 3000);
         
       } else {
-        // Only show error if it's a real error, not just missing response
-        const errorMessage = response?.error || 'Failed to update profile';
-        console.error("[POPUP] Profile update failed:", errorMessage);
-        
-        // Show error message with better UX
-        const errorDiv = document.createElement('div');
-        errorDiv.style.cssText = `
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          background: #ef4444;
-          color: white;
-          padding: 12px 20px;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          z-index: 10000;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-          animation: slideIn 0.3s ease;
-        `;
-        errorDiv.textContent = errorMessage;
-        document.body.appendChild(errorDiv);
-        
-        // Remove error message after 4 seconds
-        setTimeout(() => {
-          if (errorDiv.parentNode) {
-            errorDiv.parentNode.removeChild(errorDiv);
-          }
-        }, 4000);
+        throw new Error('Failed to reload user data');
       }
+      
     } catch (error) {
       console.error("[POPUP] Error updating profile:", error);
       
-      // Show error message with better UX
       const errorDiv = document.createElement('div');
       errorDiv.style.cssText = `
         position: fixed;
@@ -357,10 +373,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         animation: slideIn 0.3s ease;
       `;
-      errorDiv.textContent = 'Network error. Please try again.';
+      errorDiv.textContent = 'Failed to update profile. Please try again.';
       document.body.appendChild(errorDiv);
       
-      // Remove error message after 4 seconds
       setTimeout(() => {
         if (errorDiv.parentNode) {
           errorDiv.parentNode.removeChild(errorDiv);
