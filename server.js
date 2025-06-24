@@ -56,6 +56,23 @@ function initializeDatabase() {
             console.log('Reading list table ready');
         }
     });
+
+    // Create follows table
+    db.run(`CREATE TABLE IF NOT EXISTS follows (
+        id TEXT PRIMARY KEY,
+        followerId TEXT,
+        followingId TEXT,
+        createdAt TEXT,
+        FOREIGN KEY (followerId) REFERENCES users (id),
+        FOREIGN KEY (followingId) REFERENCES users (id),
+        UNIQUE(followerId, followingId)
+    )`, (err) => {
+        if (err) {
+            console.error('Error creating follows table:', err);
+        } else {
+            console.log('Follows table ready');
+        }
+    });
 }
 
 // Generate a unique user ID for new users
@@ -150,15 +167,6 @@ function addReadingItem(item) {
     });
 }
 
-function deleteReadingItem(itemId, userId) {
-    return new Promise((resolve, reject) => {
-        db.run('DELETE FROM reading_list WHERE id = ? AND userId = ?', [itemId, userId], function(err) {
-            if (err) reject(err);
-            else resolve(this.changes);
-        });
-    });
-}
-
 function clearUserReadingList(userId) {
     return new Promise((resolve, reject) => {
         db.run('DELETE FROM reading_list WHERE userId = ?', [userId], function(err) {
@@ -178,6 +186,73 @@ function getAllPublicUsers() {
             GROUP BY u.id
             ORDER BY readingListCount DESC
         `, [], (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+}
+
+// Follow operations
+function followUser(followerId, followingId) {
+    return new Promise((resolve, reject) => {
+        const followId = uuidv4();
+        db.run(
+            'INSERT INTO follows (id, followerId, followingId, createdAt) VALUES (?, ?, ?, ?)',
+            [followId, followerId, followingId, new Date().toISOString()],
+            function(err) {
+                if (err) reject(err);
+                else resolve(this.lastID);
+            }
+        );
+    });
+}
+
+function unfollowUser(followerId, followingId) {
+    return new Promise((resolve, reject) => {
+        db.run('DELETE FROM follows WHERE followerId = ? AND followingId = ?', [followerId, followingId], function(err) {
+            if (err) reject(err);
+            else resolve(this.changes);
+        });
+    });
+}
+
+function isFollowing(followerId, followingId) {
+    return new Promise((resolve, reject) => {
+        db.get('SELECT * FROM follows WHERE followerId = ? AND followingId = ?', [followerId, followingId], (err, row) => {
+            if (err) reject(err);
+            else resolve(!!row);
+        });
+    });
+}
+
+function getFollowingList(userId) {
+    return new Promise((resolve, reject) => {
+        db.all(`
+            SELECT u.id, u.username, u.displayName, u.isPublic, f.createdAt as followedAt, COUNT(r.id) as readingListCount
+            FROM follows f
+            JOIN users u ON f.followingId = u.id
+            LEFT JOIN reading_list r ON u.id = r.userId
+            WHERE f.followerId = ?
+            GROUP BY u.id
+            ORDER BY f.createdAt DESC
+        `, [userId], (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+}
+
+function getFollowersList(userId) {
+    return new Promise((resolve, reject) => {
+        db.all(`
+            SELECT u.id, u.username, u.displayName, u.isPublic, f.createdAt as followedAt, COUNT(r.id) as readingListCount
+            FROM follows f
+            JOIN users u ON f.followerId = u.id
+            LEFT JOIN reading_list r ON u.id = r.userId
+            WHERE f.followingId = ?
+            GROUP BY u.id
+            ORDER BY f.createdAt DESC
+        `, [userId], (err, rows) => {
             if (err) reject(err);
             else resolve(rows);
         });
@@ -295,28 +370,6 @@ app.post('/api/user/:userId/reading-list', async (req, res) => {
     }
 });
 
-// Remove specific item from reading list
-app.delete('/api/user/:userId/reading-list/:itemId', async (req, res) => {
-    try {
-        const { userId, itemId } = req.params;
-        
-        const user = await getUserById(userId);
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        
-        const changes = await deleteReadingItem(itemId, userId);
-        if (changes > 0) {
-            res.json({ success: true });
-        } else {
-            res.status(404).json({ error: 'Item not found' });
-        }
-    } catch (error) {
-        console.error('Error deleting reading item:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
 // Clear all reading list items for a user
 app.delete('/api/user/:userId/reading-list', async (req, res) => {
     try {
@@ -364,6 +417,109 @@ app.get('/api/user/by-username/:username', async (req, res) => {
         res.json({ user, readingList });
     } catch (error) {
         console.error('Error getting user by username:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Follow a user
+app.post('/api/user/:followerId/follow/:followingId', async (req, res) => {
+    try {
+        const { followerId, followingId } = req.params;
+        
+        // Check if both users exist
+        const follower = await getUserById(followerId);
+        const following = await getUserById(followingId);
+        
+        if (!follower || !following) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        // Check if already following
+        const alreadyFollowing = await isFollowing(followerId, followingId);
+        if (alreadyFollowing) {
+            return res.status(400).json({ error: 'Already following this user' });
+        }
+        
+        // Follow the user
+        await followUser(followerId, followingId);
+        res.json({ success: true, message: 'User followed successfully' });
+    } catch (error) {
+        console.error('Error following user:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Unfollow a user
+app.delete('/api/user/:followerId/follow/:followingId', async (req, res) => {
+    try {
+        const { followerId, followingId } = req.params;
+        
+        // Check if both users exist
+        const follower = await getUserById(followerId);
+        const following = await getUserById(followingId);
+        
+        if (!follower || !following) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        // Unfollow the user
+        const changes = await unfollowUser(followerId, followingId);
+        if (changes > 0) {
+            res.json({ success: true, message: 'User unfollowed successfully' });
+        } else {
+            res.status(400).json({ error: 'Not following this user' });
+        }
+    } catch (error) {
+        console.error('Error unfollowing user:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Check if following a user
+app.get('/api/user/:followerId/following/:followingId', async (req, res) => {
+    try {
+        const { followerId, followingId } = req.params;
+        
+        const isFollowingUser = await isFollowing(followerId, followingId);
+        res.json({ isFollowing: isFollowingUser });
+    } catch (error) {
+        console.error('Error checking follow status:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get user's following list
+app.get('/api/user/:userId/following', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        const user = await getUserById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const followingList = await getFollowingList(userId);
+        res.json({ following: followingList });
+    } catch (error) {
+        console.error('Error getting following list:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get user's followers list
+app.get('/api/user/:userId/followers', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        const user = await getUserById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const followersList = await getFollowersList(userId);
+        res.json({ followers: followersList });
+    } catch (error) {
+        console.error('Error getting followers list:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
