@@ -125,6 +125,13 @@ readwriteex/
 - [x] Logout and account switching is seamless
 
 ---
+## 📚 Useful Resources
+Express.js Documentation
+SQLite Documentation
+Chrome Extension Developer Guide
+WebLLM Project (for LLM integration)
+
+---
 
 ## 📬 Feedback & Contributions
 
