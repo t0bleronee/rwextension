@@ -9,9 +9,15 @@ const readingList = document.getElementById('readingList');
 const usernameSearch = document.getElementById('usernameSearch');
 const searchBtn = document.getElementById('searchBtn');
 const backToDiscoveryBtn = document.getElementById('backToDiscovery');
+const followBtn = document.getElementById('followBtn');
+const unfollowBtn = document.getElementById('unfollowBtn');
+const allUsersTab = document.getElementById('allUsersTab');
+const followingTab = document.getElementById('followingTab');
 
 // State
 let currentUser = null;
+let currentViewingUser = null;
+let currentUserId = null; // The logged-in user's ID (from extension)
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     setupEventListeners();
+    getCurrentUserId();
 });
 
 function setupEventListeners() {
@@ -36,6 +43,127 @@ function setupEventListeners() {
         if (e.key === 'Enter') handleSearch();
     });
     backToDiscoveryBtn.addEventListener('click', showDiscovery);
+    followBtn.addEventListener('click', handleFollow);
+    unfollowBtn.addEventListener('click', handleUnfollow);
+    allUsersTab.addEventListener('click', () => switchTab('all'));
+    followingTab.addEventListener('click', () => switchTab('following'));
+}
+
+// Get current user ID from extension storage
+async function getCurrentUserId() {
+    try {
+        // Try to get from localStorage first (set by extension)
+        const storedUserId = localStorage.getItem('currentUserId');
+        if (storedUserId) {
+            currentUserId = storedUserId;
+            console.log('Got user ID from localStorage:', currentUserId);
+            return;
+        }
+        
+        // If not in localStorage, try to get from extension
+        if (typeof chrome !== 'undefined' && chrome.runtime) {
+            try {
+                const response = await new Promise((resolve, reject) => {
+                    chrome.runtime.sendMessage({ type: "GET_CURRENT_USER_ID" }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    });
+                });
+                
+                if (response && response.userId) {
+                    currentUserId = response.userId;
+                    localStorage.setItem('currentUserId', currentUserId);
+                    console.log('Got user ID from extension:', currentUserId);
+                }
+            } catch (error) {
+                console.log('Extension not available or error getting user ID:', error);
+                showLoginPrompt();
+            }
+        } else {
+            console.log('Chrome extension API not available');
+            showLoginPrompt();
+        }
+    } catch (error) {
+        console.error('Error getting current user ID:', error);
+        showLoginPrompt();
+    }
+}
+
+function showLoginPrompt() {
+    // Add a login prompt to the discovery section
+    const discoveryHeader = document.querySelector('.discovery-header');
+    if (discoveryHeader && !document.getElementById('loginPrompt')) {
+        const loginPrompt = document.createElement('div');
+        loginPrompt.id = 'loginPrompt';
+        loginPrompt.className = 'login-prompt';
+        loginPrompt.innerHTML = `
+            <div class="login-box">
+                <h3>🔐 Login Required</h3>
+                <p>To use follow features, you need to:</p>
+                <ol>
+                    <li>Install the Read & Watch Logger extension</li>
+                    <li>Or enter your user ID manually below</li>
+                </ol>
+                <div class="login-input">
+                    <input type="text" id="manualUserId" placeholder="Enter your user ID..." />
+                    <button id="loginBtn" class="btn btn-primary">Login</button>
+                </div>
+                <p class="login-note">💡 You can find your user ID in the extension popup</p>
+            </div>
+        `;
+        discoveryHeader.appendChild(loginPrompt);
+        
+        // Add event listener for manual login
+        document.getElementById('loginBtn').addEventListener('click', handleManualLogin);
+        document.getElementById('manualUserId').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleManualLogin();
+        });
+    }
+}
+
+async function handleManualLogin() {
+    const userId = document.getElementById('manualUserId').value.trim();
+    if (!userId) {
+        alert('Please enter a user ID');
+        return;
+    }
+    
+    try {
+        // Verify the user exists
+        const response = await fetch(`${API_BASE}/user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            currentUserId = data.user.id;
+            localStorage.setItem('currentUserId', currentUserId);
+            console.log('Manual login successful:', currentUserId);
+            
+            // Remove login prompt
+            const loginPrompt = document.getElementById('loginPrompt');
+            if (loginPrompt) {
+                loginPrompt.remove();
+            }
+            
+            // Refresh the current view
+            if (followingTab.classList.contains('active')) {
+                loadFollowingUsers();
+            }
+            
+            alert('Login successful! You can now use follow features.');
+        } else {
+            alert('Invalid user ID. Please check and try again.');
+        }
+    } catch (error) {
+        console.error('Manual login error:', error);
+        alert('Login failed. Please try again.');
+    }
 }
 
 async function handleSearch() {
@@ -79,16 +207,56 @@ async function loadPublicUsers() {
     }
 }
 
+async function loadFollowingUsers() {
+    if (!currentUserId) {
+        showError(usersList, 'Please log in to view following list');
+        return;
+    }
+    
+    try {
+        showLoading(usersList);
+        const response = await fetch(`${API_BASE}/user/${currentUserId}/following`);
+        const data = await response.json();
+        
+        if (data.following.length === 0) {
+            usersList.innerHTML = `
+                <div class="loading">
+                    <h3>Not following anyone yet</h3>
+                    <p>Start following users to see them here!</p>
+                </div>
+            `;
+            return;
+        }
+        
+        displayUsers(data.following);
+    } catch (error) {
+        console.error('Error loading following users:', error);
+        showError(usersList, 'Failed to load following list');
+    }
+}
+
 function displayUsers(users) {
     const usersHTML = users.map(user => `
         <div class="user-card" onclick="viewUserProfile('${user.username}')">
             <h3>${escapeHtml(user.displayName)}</h3>
             <p class="username">@${user.username}</p>
-            <p class="stats">${user.readingListCount} items in reading list</p>
+            <p class="stats">${user.readingListCount || 0} items in reading list</p>
         </div>
     `).join('');
     
     usersList.innerHTML = usersHTML;
+}
+
+function switchTab(tab) {
+    if (tab === 'all') {
+        allUsersTab.classList.add('active');
+        followingTab.classList.remove('active');
+        loadPublicUsers();
+    } else if (tab === 'following') {
+        followingTab.classList.add('active');
+        allUsersTab.classList.remove('active');
+        loadFollowingUsers();
+    }
 }
 
 async function viewUserProfile(username) {
@@ -110,13 +278,16 @@ async function viewUserProfile(username) {
     }
 }
 
-function showUserProfile(user, readingList) {
-    currentUser = user;
+async function showUserProfile(user, readingList) {
+    currentViewingUser = user;
     
     // Update profile header
     document.getElementById('profileName').textContent = user.displayName;
     document.getElementById('profileUsername').textContent = `@${user.username}`;
     document.getElementById('profileStats').textContent = `${readingList.length} items in reading list`;
+    
+    // Show/hide follow buttons based on current user
+    await updateFollowButtons(user);
     
     // Display reading list
     if (readingList.length === 0) {
@@ -133,6 +304,74 @@ function showUserProfile(user, readingList) {
     // Show profile section
     discoverySection.classList.add('hidden');
     userProfileSection.classList.remove('hidden');
+}
+
+async function updateFollowButtons(user) {
+    const followBtn = document.getElementById('followBtn');
+    const unfollowBtn = document.getElementById('unfollowBtn');
+    
+    // Hide both buttons initially
+    followBtn.classList.add('hidden');
+    unfollowBtn.classList.add('hidden');
+    
+    // If no current user or viewing own profile, don't show follow buttons
+    if (!currentUserId || currentUserId === user.id) {
+        return;
+    }
+    
+    try {
+        // Check if current user is following this user
+        const response = await fetch(`${API_BASE}/user/${currentUserId}/following/${user.id}`);
+        const data = await response.json();
+        
+        if (data.isFollowing) {
+            unfollowBtn.classList.remove('hidden');
+        } else {
+            followBtn.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error checking follow status:', error);
+    }
+}
+
+async function handleFollow() {
+    if (!currentUserId || !currentViewingUser) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/user/${currentUserId}/follow/${currentViewingUser.id}`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            await updateFollowButtons(currentViewingUser);
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to follow user');
+        }
+    } catch (error) {
+        console.error('Error following user:', error);
+        alert('Failed to follow user');
+    }
+}
+
+async function handleUnfollow() {
+    if (!currentUserId || !currentViewingUser) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/user/${currentUserId}/follow/${currentViewingUser.id}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            await updateFollowButtons(currentViewingUser);
+        } else {
+            const data = await response.json();
+            alert(data.error || 'Failed to unfollow user');
+        }
+    } catch (error) {
+        console.error('Error unfollowing user:', error);
+        alert('Failed to unfollow user');
+    }
 }
 
 function displayReadingList(items) {
@@ -162,12 +401,19 @@ function displayReadingList(items) {
 function showDiscovery() {
     userProfileSection.classList.add('hidden');
     discoverySection.classList.remove('hidden');
-    currentUser = null;
+    currentViewingUser = null;
     usernameSearch.value = '';
     
     // Update URL to remove user parameter
     const newUrl = `${window.location.origin}${window.location.pathname}`;
     window.history.pushState({}, '', newUrl);
+    
+    // Load the appropriate tab content
+    if (followingTab.classList.contains('active')) {
+        loadFollowingUsers();
+    } else {
+        loadPublicUsers();
+    }
 }
 
 // Handle browser back/forward buttons
