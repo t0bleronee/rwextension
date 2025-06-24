@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log("[POPUP] Updating display with:", {
         displayName: currentUser.displayName,
         username: currentUser.username,
+        id: currentUser.id,
         avatar: currentUser.displayName.charAt(0).toUpperCase()
       });
       
@@ -78,12 +79,38 @@ document.addEventListener('DOMContentLoaded', async () => {
       userName.textContent = currentUser.displayName;
       userUsername.textContent = `@${currentUser.username}`;
       
+      // Update user ID display
+      const userIdElement = document.getElementById('userId');
+      if (userIdElement) {
+        userIdElement.textContent = `ID: ${currentUser.id}`;
+        userIdElement.style.cursor = 'pointer';
+        userIdElement.title = 'Click to copy user ID';
+        userIdElement.onclick = () => {
+          navigator.clipboard.writeText(currentUser.id).then(() => {
+            // Show a brief visual feedback
+            const originalText = userIdElement.textContent;
+            userIdElement.textContent = 'ID: Copied!';
+            userIdElement.style.color = '#10b981';
+            setTimeout(() => {
+              userIdElement.textContent = originalText;
+              userIdElement.style.color = '#6b7280';
+            }, 1000);
+          });
+        };
+      }
+      
       console.log("[POPUP] Display updated successfully");
     } else {
       console.log("[POPUP] No currentUser, setting default values");
       userAvatar.textContent = 'U';
       userName.textContent = 'User';
       userUsername.textContent = '@user';
+      
+      // Update user ID display
+      const userIdElement = document.getElementById('userId');
+      if (userIdElement) {
+        userIdElement.textContent = 'ID: Not available';
+      }
     }
   }
   
@@ -124,7 +151,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           
           return `
               <div class="summary-item" data-url="${encodeURIComponent(item.url)}" data-time="${item.time || Date.now()}">
-                  <button class="delete-btn" data-url="${encodeURIComponent(item.url)}" title="Delete this item">×</button>
                   <div class="summary-title">${escapeHtml(item.title)}</div>
                   <div class="summary-text">${escapeHtml(truncatedSummary)}</div>
                   <div class="summary-meta">
@@ -137,62 +163,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       summaryList.innerHTML = summaryHTML;
       
-      // Add click handlers to open URLs (but not on delete button)
+      // Add click handlers to open URLs
       summaryList.querySelectorAll('.summary-item').forEach(item => {
           item.addEventListener('click', (e) => {
-              // Don't open URL if clicking delete button
-              if (e.target.classList.contains('delete-btn')) {
-                  return;
-              }
               const url = decodeURIComponent(item.dataset.url);
               chrome.tabs.create({ url });
           });
       });
-      
-      // Add delete button event listeners
-      summaryList.querySelectorAll('.delete-btn').forEach(btn => {
-          btn.addEventListener('click', async (e) => {
-              e.stopPropagation(); // Prevent triggering the item click
-              const url = btn.dataset.url;
-              await deleteItem(url);
-          });
-      });
   }
-  
-  // Delete individual item
-  window.deleteItem = async function(url) {
-      const decodedUrl = decodeURIComponent(url);
-      
-      if (confirm('Are you sure you want to delete this item?')) {
-          try {
-              // Remove from local storage
-              await chrome.storage.local.remove(decodedUrl);
-              
-              // Remove from server if user is authenticated
-              if (currentUser && currentUser.id && !currentUser.id.startsWith('temp_') && !currentUser.id.startsWith('local_') && !currentUser.id.startsWith('fallback_')) {
-                  try {
-                      // Find the item in the current summaries to get its ID
-                      const item = allSummaries.find(s => s.url === decodedUrl);
-                      if (item && item.id) {
-                          await fetch(`http://localhost:3000/api/user/${currentUser.id}/reading-list/${item.id}`, {
-                              method: 'DELETE'
-                          });
-                          console.log("✅ Item deleted from server");
-                      }
-                  } catch (error) {
-                      console.error("Error deleting from server:", error);
-                  }
-              }
-              
-              // Reload summaries
-              await loadSummaries();
-              console.log('Item deleted successfully');
-          } catch (error) {
-              console.error('Error deleting item:', error);
-              alert('Failed to delete item. Please try again.');
-          }
-      }
-  };
   
   // Search functionality
   function filterSummaries(query) {
