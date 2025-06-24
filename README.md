@@ -108,6 +108,38 @@ readwriteex/
 │   └── ... (dependencies)
 ```
 
+---
+
+##  Screenshots
+
+Here’s a quick visual walkthrough of the app and extension features:
+
+### 1. **Discover Readers Page**
+![Discover Readers Page](screenshots/discover.png)
+![Discover Readers Page](screenshots/follow.png)
+> The main landing page where you can search for users, view public reading lists, follow/unfollow users, and manage your profile. The “Log Out” button makes switching accounts simple.
+
+---
+
+### 2. **Extension Popup**
+![Extension Popup](screenshots/extension.png)
+> The Chrome extension popup shows your current user ID, lets you view and search your articles, and includes a quick “Clear All” option for your reading list.
+
+---
+
+### 3. **User Page View**
+![User Profile View](screenshots/user.png)
+> A user’s profile includes their display name, username, and a scrollable view of all saved content, with summaries and timestamps. You can follow users directly from this page.
+> Each item in your reading list includes the title, summary, source link, content type (article/video), and the date it was added — all summarized locally via LLM.
+
+
+---
+
+### 4. **Login Prompt**
+![Login Prompt](screenshots/login.png)
+> If you are not logged in, the app will guide you to enter your user ID present in your profile (extension popup)
+
+---
 
 ### **Potential Enhancements**
 - OAuth or email-based login for easier account recovery.
