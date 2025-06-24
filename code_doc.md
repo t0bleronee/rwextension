@@ -1,7 +1,5 @@
----
 
 ## 🛠️ Implementation Details
----
 
 ### 1. **Backend & API Design**
 
