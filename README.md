@@ -66,7 +66,7 @@ node server.js
 ---
 
 ## ⚙️ Project Structure
-
+```
 readwriteex/
 ├── README.md
 ├── profiles.db
@@ -106,7 +106,8 @@ readwriteex/
 │           └── logs.txt
 ├── node_modules/
 │   └── ... (dependencies)
----
+```
+
 
 ### **Potential Enhancements**
 - OAuth or email-based login for easier account recovery.
