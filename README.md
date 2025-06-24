@@ -1,4 +1,4 @@
-# Read & Watch Logger: Social Reading List & Follower Platform
+# Reading and Watch-List Dashboard Web App
 
 ## 📚 Project Description
 
