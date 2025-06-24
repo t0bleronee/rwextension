@@ -126,6 +126,9 @@ readwriteex/
 
 ---
 
+📌 Curious about how the backend, frontend, and Chrome extension work together? [See how the core logic fits in →](code_doc.md)
+
+---
 ## 📚 Useful Resources
 - [Express.js Documentation](https://expressjs.com/)
 - [SQLite Documentation](https://www.sqlite.org/docs.html)
