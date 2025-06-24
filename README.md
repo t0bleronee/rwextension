@@ -51,7 +51,7 @@ node server.js
 - Open your browser and go to: [http://localhost:3000](http://localhost:3000)
 - The web app is served from the `public/` directory.
 
-### 5. **(Optional) Load the Chrome Extension**
+### 5. **Load the Chrome Extension**
 - Go to `chrome://extensions` in your browser.
 - Enable "Developer mode".
 - Click "Load unpacked" and select the extension directory (if provided).
