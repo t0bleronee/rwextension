@@ -23,6 +23,8 @@
                         <p id="profileStats">0 items in reading list</p>
                     </div>
                     <div class="profile-actions">
+                        <button id="followBtn" class="btn btn-primary hidden">Follow</button>
+                        <button id="unfollowBtn" class="btn btn-secondary hidden">Unfollow</button>
                         <button id="backToDiscovery" class="btn btn-secondary">← Back to Discovery</button>
                     </div>
                 </div>
@@ -42,6 +44,11 @@
                 <div class="search-section">
                     <input type="text" id="usernameSearch" placeholder="Search by username..." class="search-input">
                     <button id="searchBtn" class="btn btn-primary">Search</button>
+                </div>
+
+                <div class="tabs">
+                    <button id="allUsersTab" class="tab-btn active">All Users</button>
+                    <button id="followingTab" class="tab-btn">Following</button>
                 </div>
 
                 <div id="usersList" class="users-list">
