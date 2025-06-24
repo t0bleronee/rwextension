@@ -49,17 +49,51 @@ function setupEventListeners() {
     followingTab.addEventListener('click', () => switchTab('following'));
 }
 
-// Get current user ID from extension storage
+// Add a logout button to the UI if logged in
+function addLogoutButton() {
+    let logoutBtn = document.getElementById('logoutBtn');
+    if (!logoutBtn) {
+        logoutBtn = document.createElement('button');
+        logoutBtn.id = 'logoutBtn';
+        logoutBtn.className = 'btn btn-secondary';
+        logoutBtn.textContent = 'Log Out';
+        logoutBtn.style.marginLeft = '1em';
+        logoutBtn.addEventListener('click', handleLogout);
+        const discoveryHeader = document.querySelector('.discovery-header');
+        if (discoveryHeader) {
+            discoveryHeader.appendChild(logoutBtn);
+        }
+    }
+}
+
+function handleLogout() {
+    localStorage.removeItem('currentUserId');
+    currentUserId = null;
+    location.reload();
+}
+
+// Enhanced getCurrentUserId with validation
 async function getCurrentUserId() {
     try {
         // Try to get from localStorage first (set by extension)
         const storedUserId = localStorage.getItem('currentUserId');
         if (storedUserId) {
-            currentUserId = storedUserId;
-            console.log('Got user ID from localStorage:', currentUserId);
-            return;
+            // Validate with backend
+            const resp = await fetch(`${API_BASE}/user/${storedUserId}/validate`);
+            const data = await resp.json();
+            if (data.valid) {
+                currentUserId = storedUserId;
+                console.log('Validated user ID from localStorage:', currentUserId);
+                addLogoutButton();
+                return;
+            } else {
+                // Invalid user, clear and prompt
+                localStorage.removeItem('currentUserId');
+                currentUserId = null;
+                showLoginPrompt();
+                return;
+            }
         }
-        
         // If not in localStorage, try to get from extension
         if (typeof chrome !== 'undefined' && chrome.runtime) {
             try {
@@ -72,11 +106,21 @@ async function getCurrentUserId() {
                         }
                     });
                 });
-                
                 if (response && response.userId) {
-                    currentUserId = response.userId;
-                    localStorage.setItem('currentUserId', currentUserId);
-                    console.log('Got user ID from extension:', currentUserId);
+                    // Validate with backend
+                    const resp = await fetch(`${API_BASE}/user/${response.userId}/validate`);
+                    const data = await resp.json();
+                    if (data.valid) {
+                        currentUserId = response.userId;
+                        localStorage.setItem('currentUserId', currentUserId);
+                        console.log('Validated user ID from extension:', currentUserId);
+                        addLogoutButton();
+                        return;
+                    } else {
+                        currentUserId = null;
+                        showLoginPrompt();
+                        return;
+                    }
                 }
             } catch (error) {
                 console.log('Extension not available or error getting user ID:', error);
@@ -150,7 +194,7 @@ async function handleManualLogin() {
             if (loginPrompt) {
                 loginPrompt.remove();
             }
-            
+            addLogoutButton();
             // Refresh the current view
             if (followingTab.classList.contains('active')) {
                 loadFollowingUsers();
