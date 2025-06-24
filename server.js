@@ -524,6 +524,21 @@ app.get('/api/user/:userId/followers', async (req, res) => {
     }
 });
 
+// Validate userId
+app.get('/api/user/:userId/validate', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const user = await getUserById(userId);
+        if (user) {
+            res.json({ valid: true, user });
+        } else {
+            res.json({ valid: false });
+        }
+    } catch (error) {
+        res.status(500).json({ valid: false, error: 'Internal server error' });
+    }
+});
+
 // Graceful shutdown
 process.on('SIGINT', () => {
     db.close((err) => {
