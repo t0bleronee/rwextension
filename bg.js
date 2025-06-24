@@ -272,6 +272,26 @@ chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.type === "GET_CURRENT_USER_ID") {
+    // Ensure user is initialized
+    if (!currentUser) {
+      try {
+        await initializeUser();
+      } catch (error) {
+        console.error("[BACKGROUND] Failed to initialize user for user ID:", error);
+        sendResponse({ error: 'User not initialized' });
+        return true;
+      }
+    }
+    
+    if (currentUser && currentUser.id) {
+      sendResponse({ userId: currentUser.id });
+    } else {
+      sendResponse({ error: 'No user found' });
+    }
+    return true;
+  }
+
   return true; // for async sendResponse
 });
 
